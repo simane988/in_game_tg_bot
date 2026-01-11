@@ -28,7 +28,7 @@ LAST_KNOWN_STEAM_GAMES = {
 }
 
 # Кеш запросов в стим
-steam_requests_delay = 5
+steam_requests_delay = 10
 steam_cache_len = int(60 / steam_requests_delay * 5)
 steam_cache_threshold = 0.75
 CACHE_STEAM_GAMES = {
@@ -60,11 +60,15 @@ def get_steam_user_games(steam_id):
 
 def send_telegram_message(message):
     """Отправить сообщение в Telegram чат"""
-    try:
-        bot = Bot(token=TELEGRAM_BOT_TOKEN)
-        asyncio.run(bot.send_message(chat_id=TARGET_CHAT_ID, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN))
-    except TelegramError as e:
-        print(f"Ошибка отправки в Telegram: {e}")
+    attempts = 3
+    for i in range(attempts):
+        try:
+            bot = Bot(token=TELEGRAM_BOT_TOKEN)
+            asyncio.run(bot.send_message(chat_id=TARGET_CHAT_ID, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN))
+        except TelegramError as e:
+            print(f"Ошибка отправки в Telegram attempt {i}: {e}")
+        else:
+            break
 
 
 def check_activities():
@@ -72,9 +76,9 @@ def check_activities():
     for name, steam_id in STEAM_IDS.items():
 
         current_game = get_steam_user_games(steam_id)
-        print(f"{name} steam_id: {steam_id}, game: {current_game}")
         CACHE_STEAM_GAMES[name].pop(0)
         CACHE_STEAM_GAMES[name].append(current_game)
+        print(f"{name} steam_id: {steam_id}, game: {current_game}, threshold: {CACHE_STEAM_GAMES[name].count(current_game) / len(CACHE_STEAM_GAMES[name])}")
 
         previous_game = LAST_KNOWN_STEAM_GAMES[name]
 
@@ -91,11 +95,11 @@ def check_activities():
 
             LAST_KNOWN_STEAM_GAMES[name] = current_game
 
-        time.sleep(steam_requests_delay)  # Задержка между запросами к API
+        time.sleep(0.5)  # Задержка между запросами к API
 
 
 if __name__ == '__main__':
     print("Бот запущен...")
     while True:
         check_activities()
-        time.sleep(30)
+        time.sleep(steam_requests_delay)
