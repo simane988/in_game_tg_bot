@@ -27,6 +27,16 @@ LAST_KNOWN_STEAM_GAMES = {
     'Эмиль': None
 }
 
+# Кеш запросов в стим
+steam_requests_delay = 5
+steam_cache_len = int(60 / steam_requests_delay * 5)
+steam_cache_threshold = 0.75
+CACHE_STEAM_GAMES = {
+    'Семён': [None] * steam_cache_len,
+    'Илья': [None] * steam_cache_len,
+    'Эмиль': [None] * steam_cache_len
+}
+
 # Соответствие имени и тега в telegram
 TELEGRAM_IDS = {
     'Семён': '396770433',
@@ -60,11 +70,16 @@ def send_telegram_message(message):
 def check_activities():
     """Проверить активность всех пользователей"""
     for name, steam_id in STEAM_IDS.items():
+
         current_game = get_steam_user_games(steam_id)
         print(f"{name} steam_id: {steam_id}, game: {current_game}")
+        CACHE_STEAM_GAMES[name].pop(0)
+        CACHE_STEAM_GAMES[name].append(current_game)
+
         previous_game = LAST_KNOWN_STEAM_GAMES[name]
 
-        if current_game != previous_game:
+        if ((current_game != previous_game) and
+                (CACHE_STEAM_GAMES[name].count(current_game) / len(CACHE_STEAM_GAMES[name]) >= steam_cache_threshold)):
             if current_game:
                 send_telegram_message(
                     f"🎮 [{name}](tg://user?id={TELEGRAM_IDS[name]}) начал играть в _{current_game}_",
@@ -76,7 +91,7 @@ def check_activities():
 
             LAST_KNOWN_STEAM_GAMES[name] = current_game
 
-        time.sleep(1)  # Задержка между запросами к API
+        time.sleep(steam_requests_delay)  # Задержка между запросами к API
 
 
 if __name__ == '__main__':
