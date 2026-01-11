@@ -11,6 +11,7 @@ from telegram.error import TelegramError
 # Конфигурация
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TARGET_CHAT_ID = os.getenv('TARGET_CHAT_ID')
+ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
 STEAM_API_KEY = os.getenv('STEAM_API_KEY')
 
 # Список отслеживаемых пользователей steam
@@ -47,29 +48,37 @@ TELEGRAM_IDS = {
 
 def get_steam_user_games(steam_id):
     url = f'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={STEAM_API_KEY}&steamids={steam_id}'
-    try:
-        response = requests.get(url, timeout=10).json()
-        if 'gameextrainfo' in response['response']['players'][0]:
-            return response['response']['players'][0]['gameextrainfo']
-        else:
-            return None
-    except Exception as e:
-        print(f"Ошибка запроса {url} Steam API: {e}")
-        return None
-
-
-def send_telegram_message(message):
-    """Отправить сообщение в Telegram чат"""
-    attempts = 3
-    for i in range(attempts):
+    steam_attempts = 3
+    for i in range(steam_attempts):
         try:
-            bot = Bot(token=TELEGRAM_BOT_TOKEN)
-            asyncio.run(bot.send_message(chat_id=TARGET_CHAT_ID, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN))
+            response = requests.get(url, timeout=10).json()
+            if 'gameextrainfo' in response['response']['players'][0]:
+                return response['response']['players'][0]['gameextrainfo']
+            else:
+                return None
+        except Exception as e:
+            error_msg = f"Ошибка запроса {url} Steam API: {e}"
+            print(error_msg)
+            send_telegram_message(error_msg, ADMIN_CHAT_ID)
+    return None
+
+
+def send_telegram_message(message, chat_id=TARGET_CHAT_ID):
+    """Отправить сообщение в Telegram чат"""
+    telegram_attempts = 3
+    for i in range(telegram_attempts):
+        try:
+            asyncio.run(telegram_bot.send_message(chat_id=chat_id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN))
         except TelegramError as e:
-            print(f"Ошибка отправки в Telegram attempt {i}: {e}")
+            error_msg = (f"ERROR: Ошибка отправки в Telegram attempt {i}"
+                         f"chat_id: {chat_id}"
+                         f"message: {message}"
+                         f"reason: {e}"
+                         )
+            print(error_msg)
+            send_telegram_message(error_msg, ADMIN_CHAT_ID)
         else:
             break
-
 
 def check_activities():
     """Проверить активность всех пользователей"""
@@ -99,7 +108,10 @@ def check_activities():
 
 
 if __name__ == '__main__':
-    print("Бот запущен...")
+    telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    start_msg = "Бот запущен..."
+    print(start_msg)
+    send_telegram_message(start_msg, ADMIN_CHAT_ID)
     while True:
         check_activities()
         time.sleep(steam_requests_delay)
